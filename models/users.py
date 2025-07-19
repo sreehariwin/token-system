@@ -1,37 +1,28 @@
-from typing import Generic, Optional, TypeVar
-from pydantic.generics import GenericModel
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from typing import Optional, Any
 
-T = TypeVar('T')
-
-#Login
+class Register(BaseModel):
+    username: str
+    password: str
+    email: str
+    phone_number: str
+    first_name: str
+    last_name: str
+    is_barber: bool = False
+    shop_name: Optional[str] = None
+    shop_address: Optional[str] = None
+    shop_image_url: Optional[str] = None
 
 class Login(BaseModel):
     username: str
     password: str
 
-#register
-
-class Register(BaseModel):
-    # id: str
-    username: str
-    password: str
-    email: str
-    phone_number: str 
-
-    first_name: str
-    last_name: str
-
-#response model
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
 
 class ResponseSchema(BaseModel):
-    code:str
-    status:str
-    message:str
-    result: Optional[T] = None
-
-#token
-
-class TokenResponse(BaseModel):
-    access_token:str
-    token_type:str
+    code: str
+    status: str
+    message: str
+    result: Optional[Any] = None

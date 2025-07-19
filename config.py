@@ -5,15 +5,16 @@ from sqlalchemy.orm import sessionmaker
 DATABASE_URL = "postgresql://postgres:root@localhost:5432/test_api"
 
 engine = create_engine(DATABASE_URL)
-SesionLocal = sessionmaker(autocommit=False, autoflush=False,bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)  # Fixed typo
 Base = declarative_base()
 
 def get_db():
-    db = SesionLocal()
+    db = SessionLocal()  # Fixed typo
     try:
         yield db
-    finally: db.close()
+    finally:
+        db.close()
 
-SECRET_KEY="double_dog123"
-ALGORITHM="HS256"
+SECRET_KEY = "double_dog123"
+ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
