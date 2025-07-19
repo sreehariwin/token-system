@@ -6,8 +6,8 @@ import os
 # Add parent directory to path so we can import our modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import database setup - THIS WAS MISSING
-from config import Base, engine
+# Import database setup
+from config import Base, engine, IS_PRODUCTION
 
 # Import your table models to ensure they're registered with SQLAlchemy
 import tables.users
@@ -19,8 +19,18 @@ from routes.users import router as auth_router
 from routes.slots import router as slots_router  
 from routes.bookings import router as bookings_router
 
-# Create database tables - THIS WAS MISSING
-Base.metadata.create_all(bind=engine)
+# Only create tables if we're in development or if they don't exist
+if not IS_PRODUCTION:
+    Base.metadata.create_all(bind=engine)
+    print("✅ Development database tables created")
+else:
+    # In production, just check if we can connect
+    try:
+        with engine.connect() as conn:
+            print("✅ Production database connection successful")
+    except Exception as e:
+        print(f"❌ Database connection failed: {e}")
+        raise
 
 app = FastAPI(
     title="Barbershop Booking API", 
