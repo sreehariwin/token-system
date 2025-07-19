@@ -24,3 +24,23 @@ def read_root():
 @app.get("/health")
 def health():
     return {"status": "healthy", "step": "basic_structure"}
+
+# Try to add database connection
+try:
+    from config import Base, engine, IS_PRODUCTION
+    
+    # Test database connection
+    if IS_PRODUCTION:
+        with engine.connect() as conn:
+            print("✅ Production database connection successful")
+    
+    @app.get("/db-status")
+    def db_status():
+        return {"database": "connected", "production": IS_PRODUCTION}
+        
+except Exception as e:
+    print(f"❌ Database connection failed: {e}")
+    
+    @app.get("/db-status")
+    def db_status():
+        return {"database": "failed", "error": str(e)}
