@@ -1,3 +1,5 @@
+# Updated api/index.py with Swagger UI enabled in production
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import sys
@@ -21,12 +23,20 @@ except Exception as e:
     DATABASE_CONNECTED = False
     print(f"❌ Database initialization failed: {e}")
 
-app = FastAPI(title="Barbershop Booking API", version="1.0.0")
+# Enable Swagger UI in production by setting docs_url and redoc_url explicitly
+app = FastAPI(
+    title="Barbershop Booking API",
+    version="1.0.0",
+    description="A comprehensive API for barbershop booking management",
+    docs_url="/docs",  # Swagger UI will be available at /docs
+    redoc_url="/redoc",  # ReDoc will be available at /redoc
+    openapi_url="/openapi.json"  # OpenAPI schema
+)
 
 # Add CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # In production, specify your frontend domains
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -34,29 +44,43 @@ app.add_middleware(
 
 # Include routers if database is connected
 if DATABASE_CONNECTED:
-    app.include_router(users.router)
-    app.include_router(bookings.router)
-    app.include_router(slots.router)
+    app.include_router(users.router, tags=["Authentication"])
+    app.include_router(bookings.router, tags=["Bookings"])
+    app.include_router(slots.router, tags=["Slots"])
 
-@app.get("/")
+@app.get("/", tags=["Root"])
 def read_root():
+    """
+    Welcome endpoint that provides basic API information
+    """
     return {
         "message": "Barbershop Booking API", 
         "status": "running",
         "database_connected": DATABASE_CONNECTED,
-        "production": IS_PRODUCTION if DATABASE_CONNECTED else False
+        "production": IS_PRODUCTION if DATABASE_CONNECTED else False,
+        "documentation": {
+            "swagger_ui": "/docs",
+            "redoc": "/redoc",
+            "openapi_schema": "/openapi.json"
+        }
     }
 
-@app.get("/health")
+@app.get("/health", tags=["Health"])
 def health():
+    """
+    Health check endpoint
+    """
     return {
         "status": "healthy", 
         "database": "connected" if DATABASE_CONNECTED else "disconnected",
         "production": IS_PRODUCTION if DATABASE_CONNECTED else False
     }
 
-@app.get("/db-status")
+@app.get("/db-status", tags=["Health"])
 def db_status():
+    """
+    Database connection status
+    """
     if DATABASE_CONNECTED:
         return {"database": "connected", "production": IS_PRODUCTION}
     else:
