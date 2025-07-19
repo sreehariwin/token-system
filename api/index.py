@@ -6,6 +6,21 @@ import os
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Import after path adjustment
+try:
+    from config import Base, engine, IS_PRODUCTION
+    import tables.users, tables.slots, tables.bookings
+    from routes import users, bookings, slots
+    
+    # Create tables
+    Base.metadata.create_all(bind=engine)
+    
+    DATABASE_CONNECTED = True
+    print("✅ Database and tables initialized successfully")
+except Exception as e:
+    DATABASE_CONNECTED = False
+    print(f"❌ Database initialization failed: {e}")
+
 app = FastAPI(title="Barbershop Booking API", version="1.0.0")
 
 # Add CORS
@@ -17,30 +32,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routers if database is connected
+if DATABASE_CONNECTED:
+    app.include_router(users.router)
+    app.include_router(bookings.router)
+    app.include_router(slots.router)
+
 @app.get("/")
 def read_root():
-    return {"message": "FastAPI with CORS working!"}
+    return {
+        "message": "Barbershop Booking API", 
+        "status": "running",
+        "database_connected": DATABASE_CONNECTED,
+        "production": IS_PRODUCTION if DATABASE_CONNECTED else False
+    }
 
 @app.get("/health")
 def health():
-    return {"status": "healthy", "step": "basic_structure"}
+    return {
+        "status": "healthy", 
+        "database": "connected" if DATABASE_CONNECTED else "disconnected",
+        "production": IS_PRODUCTION if DATABASE_CONNECTED else False
+    }
 
-# Try to add database connection
-try:
-    from config import Base, engine, IS_PRODUCTION
-    
-    # Test database connection
-    if IS_PRODUCTION:
-        with engine.connect() as conn:
-            print("✅ Production database connection successful")
-    
-    @app.get("/db-status")
-    def db_status():
+@app.get("/db-status")
+def db_status():
+    if DATABASE_CONNECTED:
         return {"database": "connected", "production": IS_PRODUCTION}
-        
-except Exception as e:
-    print(f"❌ Database connection failed: {e}")
-    
-    @app.get("/db-status")
-    def db_status():
-        return {"database": "failed", "error": str(e)}
+    else:
+        return {"database": "failed", "error": "Database initialization failed"}
