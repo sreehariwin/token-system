@@ -24,7 +24,7 @@ if not IS_PRODUCTION:
     Base.metadata.create_all(bind=engine)
     print("✅ Development database tables created")
 else:
-    # In production, just check if we can connect
+    # In production, just check if we can connect (don't create tables)
     try:
         with engine.connect() as conn:
             print("✅ Production database connection successful")
