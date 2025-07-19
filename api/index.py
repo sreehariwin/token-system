@@ -42,7 +42,8 @@ else:
         print(f"❌ Database connection failed: {e}")
         raise
 
-app = FastAPI(
+# This is required for Vercel - must be at the bottom and be the ONLY handler
+app = handler = FastAPI(
     title="Barbershop Booking API", 
     version="1.0.0"
 )
@@ -64,6 +65,3 @@ app.include_router(bookings_router, prefix="/bookings", tags=["Bookings"])
 @app.get("/")
 def home():
     return {"message": "Barbershop Booking API is running!"}
-
-# This is required for Vercel
-handler = app
