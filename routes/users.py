@@ -74,17 +74,30 @@ async def signup(request: Register, db: Session = Depends(get_db)):
         token = JWTRepo.generate_token({'sub': _user.username})
         role = "barber" if _user.is_barber else "customer"
         
+        # Prepare response data
+        response_data = {
+            "access_token": token,
+            "token_type": "bearer",
+            "role": role,
+            "user_id": _user.id,
+            "phone_number": _user.phone_number,
+            "username": _user.username
+        }
+        
+        # Add barber-specific information if user is a barber
+        if _user.is_barber:
+            response_data.update({
+                "shop_name": _user.shop_name,
+                "shop_address": _user.shop_address,
+                "shop_image_url": final_image_url,
+                "license_number": _user.license_number
+            })
+        
         return ResponseSchema(
             code="200", 
             status="OK", 
             message="User registered and logged in successfully",
-            result={
-                "access_token": token,
-                "token_type": "bearer",
-                "role": role,
-                "user_id": _user.id,
-                "shop_image_url": final_image_url
-            }
+            result=response_data
         ).dict(exclude_none=True)
         
     except Exception as e:
@@ -196,18 +209,30 @@ async def login(request: Login, db: Session = Depends(get_db)):
         token = JWTRepo.generate_token({'sub': _user.username})
         role = "barber" if _user.is_barber else "customer"
 
+        # Prepare response data
+        response_data = {
+            "access_token": token,
+            "token_type": "bearer",
+            "role": role,
+            "user_id": _user.id,
+            "phone_number": _user.phone_number,
+            "username": _user.username
+        }
+        
+        # Add barber-specific information if user is a barber
+        if _user.is_barber:
+            response_data.update({
+                "shop_name": _user.shop_name,
+                "shop_address": _user.shop_address,
+                "shop_image_url": _user.shop_image_url,
+                "license_number": _user.license_number
+            })
+
         return ResponseSchema(
             code="200",
             status="OK",
             message="Login successful",
-            result={
-                "access_token": token,
-                "token_type": "bearer",
-                "role": role,
-                "user_id": _user.id,
-                "shop_image_url": _user.shop_image_url,
-                "phone_number": _user.phone_number  # Include phone number in response
-            }
+            result=response_data
         ).dict(exclude_none=True)
     except Exception as error:
         print(f"Login error: {error}")
