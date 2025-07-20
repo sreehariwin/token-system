@@ -11,7 +11,8 @@ class Register(BaseModel):
     is_barber: bool = False
     shop_name: Optional[str] = None
     shop_address: Optional[str] = None
-    shop_image_url: Optional[str] = None
+    shop_image_url: Optional[str] = None  # Base64 image string from mobile
+    license_number: Optional[str] = None  # New license number field
 
 class Login(BaseModel):
     username: str
@@ -20,6 +21,7 @@ class Login(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
+    role: str
 
 class ResponseSchema(BaseModel):
     code: str

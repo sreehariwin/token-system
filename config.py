@@ -1,4 +1,6 @@
 import os
+import cloudinary
+import cloudinary.uploader
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -15,6 +17,17 @@ if IS_PRODUCTION:
     SECRET_KEY = os.getenv("SECRET_KEY")
     if not SECRET_KEY:
         raise ValueError("SECRET_KEY environment variable is required in production")
+    
+    # Cloudinary configuration for production
+    CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
+    CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
+    CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+    
+    if not all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
+        print("⚠️ Warning: Cloudinary credentials not found. Image upload will be disabled.")
+        CLOUDINARY_ENABLED = False
+    else:
+        CLOUDINARY_ENABLED = True
         
     print(f"🚀 Running in PRODUCTION mode")
     print(f"📊 Database URL: {DATABASE_URL[:50]}...")  # Only show first 50 chars for security
@@ -22,7 +35,25 @@ else:
     # Local: Use your existing local database
     DATABASE_URL = "postgresql://postgres:root@localhost:5432/test_api"
     SECRET_KEY = "double_dog123"
+    
+    # Local Cloudinary configuration (optional for local testing)
+    CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
+    CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")  
+    CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+    CLOUDINARY_ENABLED = bool(CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET)
+    
     print("💻 Running in LOCAL development mode")
+
+# Configure Cloudinary if enabled
+if CLOUDINARY_ENABLED:
+    cloudinary.config(
+        cloud_name=CLOUDINARY_CLOUD_NAME,
+        api_key=CLOUDINARY_API_KEY,
+        api_secret=CLOUDINARY_API_SECRET
+    )
+    print("☁️ Cloudinary configured successfully")
+else:
+    print("⚠️ Cloudinary disabled - images will not be uploaded")
 
 # Handle different PostgreSQL URL formats
 if DATABASE_URL.startswith("postgres://"):

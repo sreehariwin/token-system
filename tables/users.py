@@ -16,5 +16,6 @@ class Users(Base):
     shop_name = Column(String, nullable=True)
     shop_address = Column(String, nullable=True)
     shop_image_url = Column(String, nullable=True)
+    license_number = Column(String, nullable=True)  # New field
     create_date = Column(DateTime, default=datetime.datetime.utcnow)
     update_date = Column(DateTime)
