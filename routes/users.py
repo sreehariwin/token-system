@@ -362,7 +362,7 @@ async def get_profile(
             "first_name": current_user.first_name,
             "last_name": current_user.last_name,
             "is_barber": current_user.is_barber,
-            "created_at": current_user.created_at
+            "created_at": current_user.create_date  # Fixed: use create_date instead of created_at
         }
         
         # Add barber-specific information if user is a barber
