@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import after path adjustment
 try:
     from config import Base, engine, IS_PRODUCTION
-    import tables.users, tables.slots, tables.bookings
+    import tables.users, tables.slots, tables.bookings, tables.user_sessions
     from routes import users, bookings, slots
     
     # Create tables

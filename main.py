@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from config import Base, engine
-import tables.users, tables.slots, tables.bookings
+import tables.users, tables.slots, tables.bookings, tables.user_sessions
 from routes import users, bookings, slots
 
 Base.metadata.create_all(bind=engine)

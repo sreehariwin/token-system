@@ -1,3 +1,4 @@
+# config.py - Updated with session management settings
 import os
 import cloudinary
 import cloudinary.uploader
@@ -79,9 +80,14 @@ except Exception as e:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# JWT settings
+# JWT settings - Updated for session-based auth
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# Remove ACCESS_TOKEN_EXPIRE_MINUTES since tokens won't expire automatically
+# ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# Session management settings
+SESSION_CLEANUP_HOURS = 24 * 30  # Clean up inactive sessions after 30 days
+MAX_SESSIONS_PER_USER = 5  # Maximum concurrent sessions per user
 
 def get_db():
     db = SessionLocal()

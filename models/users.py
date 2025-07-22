@@ -1,7 +1,6 @@
-# models/users.py - Add this ChangePassword model to your existing models
-
+# models/users.py - Updated with session management models
 from pydantic import BaseModel, validator
-from typing import Optional, Any
+from typing import Optional, Any, List
 from datetime import datetime
 
 class Register(BaseModel):
@@ -42,6 +41,25 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str
     role: str
+    expires_on_logout: bool = True  # Indicate that token doesn't auto-expire
+
+class SessionInfo(BaseModel):
+    """Information about user sessions"""
+    session_id: int
+    device_info: Optional[str]
+    ip_address: Optional[str]
+    created_at: datetime
+    last_accessed: datetime
+    is_current: bool = False
+
+class ActiveSessionsResponse(BaseModel):
+    """Response model for active sessions"""
+    total_sessions: int
+    sessions: List[SessionInfo]
+
+class LogoutRequest(BaseModel):
+    """Request model for logout"""
+    logout_all_devices: bool = False
 
 class ResponseSchema(BaseModel):
     code: str
@@ -49,7 +67,7 @@ class ResponseSchema(BaseModel):
     message: str
     result: Optional[Any] = None
 
-# Booking models
+# Booking models (keeping existing ones)
 class BookingRequest(BaseModel):
     slot_id: int
 

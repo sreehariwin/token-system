@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy.orm import relationship
 from config import Base
 import datetime
 
@@ -19,3 +20,6 @@ class Users(Base):
     license_number = Column(String, nullable=True)  # New field
     create_date = Column(DateTime, default=datetime.datetime.utcnow)
     update_date = Column(DateTime)
+    
+    # Add the missing relationship
+    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
