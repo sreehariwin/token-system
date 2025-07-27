@@ -1,9 +1,13 @@
-# routes/slots.py - Enhanced with date and time management
+# routes/slots.py - Updated to allow multiple slots at same time
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from config import get_db
-from models.slots import SlotCreate, SlotCreateBulk, SlotResponse, SlotFilter
+from models.slots import (
+    SlotCreate, SlotCreateBulk, SlotResponse, SlotFilter, 
+    SlotCreateMultiple, SlotTimeCount, SlotCountResponse, 
+    BulkDeleteRequest, TemplateGenerateRequest
+)
 from tables.slots import Slot
 from repository.users import get_current_user
 from tables.users import Users
@@ -18,40 +22,12 @@ def create_slot(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user)
 ):
-    """Create a single slot"""
+    """Create a single slot - allows multiple slots at same time"""
     if not current_user.is_barber:
         raise HTTPException(status_code=403, detail="Only barbers can create slots")
 
-    # Check for overlapping slots
-    existing_slot = db.query(Slot).filter(
-        and_(
-            Slot.barber_id == current_user.id,
-            Slot.slot_date == slot_data.slot_date,
-            or_(
-                # New slot starts during existing slot
-                and_(
-                    Slot.start_time <= slot_data.start_time,
-                    Slot.end_time > slot_data.start_time
-                ),
-                # New slot ends during existing slot
-                and_(
-                    Slot.start_time < slot_data.end_time,
-                    Slot.end_time >= slot_data.end_time
-                ),
-                # New slot completely contains existing slot
-                and_(
-                    Slot.start_time >= slot_data.start_time,
-                    Slot.end_time <= slot_data.end_time
-                )
-            )
-        )
-    ).first()
-    
-    if existing_slot:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Slot conflicts with existing slot from {existing_slot.start_time} to {existing_slot.end_time}"
-        )
+    # REMOVED: Overlap validation to allow multiple slots at same time
+    # Barbers can now create multiple slots with identical times
 
     # Create slot_time for backward compatibility
     slot_datetime = datetime.combine(slot_data.slot_date, slot_data.start_time)
@@ -75,7 +51,7 @@ def create_bulk_slots(
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user)
 ):
-    """Create multiple slots for the same date"""
+    """Create multiple slots - supports different times and counts"""
     if not current_user.is_barber:
         raise HTTPException(status_code=403, detail="Only barbers can create slots")
 
@@ -84,33 +60,54 @@ def create_bulk_slots(
     for time_slot in slot_data.time_slots:
         start_time = time.fromisoformat(time_slot['start_time'])
         end_time = time.fromisoformat(time_slot['end_time'])
+        count = time_slot.get('count', 1)  # Default to 1 if not specified
         
-        # Check for overlapping slots
-        existing_slot = db.query(Slot).filter(
-            and_(
-                Slot.barber_id == current_user.id,
-                Slot.slot_date == slot_data.slot_date,
-                or_(
-                    and_(Slot.start_time <= start_time, Slot.end_time > start_time),
-                    and_(Slot.start_time < end_time, Slot.end_time >= end_time),
-                    and_(Slot.start_time >= start_time, Slot.end_time <= end_time)
-                )
+        # Create multiple slots for this time slot
+        for i in range(count):
+            slot_datetime = datetime.combine(slot_data.slot_date, start_time)
+            
+            new_slot = Slot(
+                barber_id=current_user.id,
+                slot_date=slot_data.slot_date,
+                start_time=start_time,
+                end_time=end_time,
+                slot_time=slot_datetime
             )
-        ).first()
-        
-        if existing_slot:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Slot {start_time}-{end_time} conflicts with existing slot"
-            )
-        
-        slot_datetime = datetime.combine(slot_data.slot_date, start_time)
-        
+            
+            db.add(new_slot)
+            created_slots.append(new_slot)
+    
+    db.commit()
+    
+    # Refresh all created slots
+    for slot in created_slots:
+        db.refresh(slot)
+    
+    return created_slots
+
+@router.post("/create-multiple", response_model=List[SlotResponse])
+def create_multiple_identical_slots(
+    slot_data: SlotCreate,
+    count: int = Query(..., description="Number of identical slots to create", ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Create multiple identical slots with same date/time"""
+    if not current_user.is_barber:
+        raise HTTPException(status_code=403, detail="Only barbers can create slots")
+
+    if count > 50:
+        raise HTTPException(status_code=400, detail="Cannot create more than 50 slots at once")
+
+    created_slots = []
+    slot_datetime = datetime.combine(slot_data.slot_date, slot_data.start_time)
+
+    for i in range(count):
         new_slot = Slot(
             barber_id=current_user.id,
             slot_date=slot_data.slot_date,
-            start_time=start_time,
-            end_time=end_time,
+            start_time=slot_data.start_time,
+            end_time=slot_data.end_time,
             slot_time=slot_datetime
         )
         
@@ -152,8 +149,8 @@ def get_available_slots(
     if end_date:
         query = query.filter(Slot.slot_date <= end_date)
     
-    # Order by date and start time
-    slots = query.order_by(Slot.slot_date, Slot.start_time).all()
+    # Order by date, start time, and slot ID to show multiple slots at same time
+    slots = query.order_by(Slot.slot_date, Slot.start_time, Slot.id).all()
     return slots
 
 @router.get("/by-date/{slot_date}", response_model=List[SlotResponse])
@@ -172,7 +169,8 @@ def get_slots_by_date(
     if barber_id:
         query = query.filter(Slot.barber_id == barber_id)
     
-    slots = query.order_by(Slot.start_time).all()
+    # Order by start time and slot ID to show multiple slots at same time
+    slots = query.order_by(Slot.start_time, Slot.id).all()
     return slots
 
 @router.get("/barber/my-slots")
@@ -200,8 +198,48 @@ def get_barber_slots(
     if not include_booked:
         query = query.filter(Slot.is_booked == False)
     
-    slots = query.order_by(Slot.slot_date, Slot.start_time).all()
+    # Order by date, start time, and slot ID to show multiple slots at same time
+    slots = query.order_by(Slot.slot_date, Slot.start_time, Slot.id).all()
     return slots
+
+@router.get("/count-by-time", response_model=SlotCountResponse)
+def count_slots_by_time(
+    slot_date: date = Query(..., description="Date to count slots for"),
+    barber_id: Optional[int] = Query(None, description="Filter by specific barber"),
+    db: Session = Depends(get_db)
+):
+    """Get count of slots grouped by time for a specific date"""
+    query = db.query(Slot).filter(Slot.slot_date == slot_date)
+    
+    if barber_id:
+        query = query.filter(Slot.barber_id == barber_id)
+    
+    slots = query.all()
+    
+    # Group slots by time
+    time_counts = {}
+    for slot in slots:
+        time_key = f"{slot.start_time}-{slot.end_time}"
+        if time_key not in time_counts:
+            time_counts[time_key] = SlotTimeCount(
+                start_time=slot.start_time,
+                end_time=slot.end_time,
+                total_slots=0,
+                available_slots=0,
+                booked_slots=0
+            )
+        
+        time_counts[time_key].total_slots += 1
+        if slot.is_booked:
+            time_counts[time_key].booked_slots += 1
+        else:
+            time_counts[time_key].available_slots += 1
+    
+    return SlotCountResponse(
+        date=slot_date,
+        barber_id=barber_id,
+        time_slots=list(time_counts.values())
+    )
 
 @router.delete("/{slot_id}")
 def delete_slot(
@@ -228,6 +266,63 @@ def delete_slot(
     
     return {"message": "Slot deleted successfully", "slot_id": slot_id}
 
+@router.delete("/bulk-delete")
+def bulk_delete_slots(
+    slot_date: date = Query(..., description="Date to delete slots from"),
+    start_time: Optional[time] = Query(None, description="Start time filter"),
+    end_time: Optional[time] = Query(None, description="End time filter"),
+    unbooked_only: bool = Query(True, description="Only delete unbooked slots"),
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Delete multiple slots matching criteria"""
+    if not current_user.is_barber:
+        raise HTTPException(status_code=403, detail="Only barbers can delete slots")
+    
+    query = db.query(Slot).filter(
+        and_(
+            Slot.barber_id == current_user.id,
+            Slot.slot_date == slot_date
+        )
+    )
+    
+    if start_time:
+        query = query.filter(Slot.start_time == start_time)
+    
+    if end_time:
+        query = query.filter(Slot.end_time == end_time)
+    
+    if unbooked_only:
+        query = query.filter(Slot.is_booked == False)
+    
+    slots_to_delete = query.all()
+    
+    if not slots_to_delete:
+        raise HTTPException(status_code=404, detail="No slots found matching criteria")
+    
+    # Check if any slots are booked (if unbooked_only is False)
+    if not unbooked_only:
+        booked_slots = [slot for slot in slots_to_delete if slot.is_booked]
+        if booked_slots:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Cannot delete {len(booked_slots)} booked slots"
+            )
+    
+    deleted_count = len(slots_to_delete)
+    
+    # Delete the slots
+    for slot in slots_to_delete:
+        db.delete(slot)
+    
+    db.commit()
+    
+    return {
+        "message": f"Successfully deleted {deleted_count} slots",
+        "deleted_count": deleted_count,
+        "date": slot_date
+    }
+
 @router.get("/generate-template")
 def generate_weekly_template(
     start_date: date = Query(..., description="Start date for the week"),
@@ -235,11 +330,12 @@ def generate_weekly_template(
         "09:00-10:00,10:00-11:00,11:00-12:00,14:00-15:00,15:00-16:00,16:00-17:00",
         description="Comma-separated time slots in format 'HH:MM-HH:MM'"
     ),
+    slots_per_time: int = Query(1, description="Number of slots to create per time slot", ge=1, le=10),
     exclude_weekends: bool = Query(True),
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user)
 ):
-    """Generate slots for a week based on template"""
+    """Generate slots for a week based on template with multiple slots per time"""
     if not current_user.is_barber:
         raise HTTPException(status_code=403, detail="Only barbers can generate slots")
     
@@ -273,17 +369,8 @@ def generate_weekly_template(
                 start_time = time.fromisoformat(time_slot['start_time'])
                 end_time = time.fromisoformat(time_slot['end_time'])
                 
-                # Check if slot already exists
-                existing = db.query(Slot).filter(
-                    and_(
-                        Slot.barber_id == current_user.id,
-                        Slot.slot_date == current_date,
-                        Slot.start_time == start_time,
-                        Slot.end_time == end_time
-                    )
-                ).first()
-                
-                if not existing:
+                # Create multiple slots for each time slot
+                for slot_num in range(slots_per_time):
                     slot_datetime = datetime.combine(current_date, start_time)
                     new_slot = Slot(
                         barber_id=current_user.id,
@@ -294,6 +381,7 @@ def generate_weekly_template(
                     )
                     db.add(new_slot)
                     created_slots.append(new_slot)
+                    
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=f"Invalid time format: {e}")
         
@@ -304,6 +392,7 @@ def generate_weekly_template(
     return {
         "message": f"Generated {len(created_slots)} slots successfully",
         "slots_created": len(created_slots),
+        "slots_per_time": slots_per_time,
         "start_date": start_date,
         "end_date": current_date - timedelta(days=1)
     }
