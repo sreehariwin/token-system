@@ -1,4 +1,4 @@
-# Updated api/index.py with Swagger UI enabled in production
+# Updated api/index.py with new shop routes
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
     from config import Base, engine, IS_PRODUCTION
     import tables.users, tables.slots, tables.bookings, tables.user_sessions
-    from routes import users, bookings, slots
+    from routes import users, bookings, slots, shops
     
     # Create tables
     Base.metadata.create_all(bind=engine)
@@ -47,6 +47,7 @@ if DATABASE_CONNECTED:
     app.include_router(users.router, tags=["Authentication"])
     app.include_router(bookings.router, tags=["Bookings"])
     app.include_router(slots.router, tags=["Slots"])
+    app.include_router(shops.router, tags=["Shops"])  # New shop routes
 
 @app.get("/", tags=["Root"])
 def read_root():
@@ -62,7 +63,14 @@ def read_root():
             "swagger_ui": "/docs",
             "redoc": "/redoc",
             "openapi_schema": "/openapi.json"
-        }
+        },
+        "features": [
+            "User Authentication with Session Management",
+            "Slot Management with Time-based Restrictions",
+            "Advanced Booking System with Reviews",
+            "Shop Listing and Discovery",
+            "Real-time Availability Tracking"
+        ]
     }
 
 @app.get("/health", tags=["Health"])
