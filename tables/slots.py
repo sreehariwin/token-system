@@ -1,5 +1,6 @@
-# tables/slots.py - Updated with start_time, end_time, and date
+# tables/slots.py - Updated with start_time, end_time, date, and barber relationship
 from sqlalchemy import Column, Integer, DateTime, Boolean, ForeignKey, Time, Date
+from sqlalchemy.orm import relationship
 from config import Base
 import datetime
 
@@ -20,3 +21,7 @@ class Slot(Base):
     is_booked = Column(Boolean, default=False)
     booked_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    # Add the missing relationship to barber
+    barber = relationship("Users", foreign_keys=[barber_id], back_populates="barber_slots")
+    booked_by_user = relationship("Users", foreign_keys=[booked_by])

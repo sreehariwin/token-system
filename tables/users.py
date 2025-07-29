@@ -21,5 +21,8 @@ class Users(Base):
     create_date = Column(DateTime, default=datetime.datetime.utcnow)
     update_date = Column(DateTime)
     
-    # Add the missing relationship
+    # Add the missing relationship for sessions
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    
+    # Add the missing relationship for barber slots
+    barber_slots = relationship("Slot", foreign_keys="Slot.barber_id", back_populates="barber")
