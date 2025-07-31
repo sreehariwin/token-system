@@ -102,7 +102,8 @@ def list_all_shops(
             total_reviews=total_reviews,
             available_slots_count=available_slots_count if has_available_slots else None,
             next_available_slot=next_slot.slot_date if next_slot else None,
-            next_available_time=next_slot.start_time if next_slot else None
+            next_available_time=next_slot.start_time if next_slot else None,
+            shop_status=barber.shop_status or "open",
         ))
     
     return result
@@ -206,7 +207,8 @@ def get_shop_details(
         recent_reviews=reviews,
         available_slots=available_slots,
         business_hours=business_hours,
-        member_since=barber.create_date.date() if barber.create_date else None
+        member_since=barber.create_date.date() if barber.create_date else None,
+        shop_status=barber.shop_status or "open",
     )
 
 @router.get("/nearby")

@@ -15,6 +15,8 @@ class Register(BaseModel):
     shop_address: Optional[str] = None
     shop_image_url: Optional[str] = None
     license_number: Optional[str] = None
+    shop_status: Optional[str] = "open"
+
 
 class Login(BaseModel):
     phone_number: str
@@ -80,3 +82,83 @@ class BookingResponse(BaseModel):
 class UpdateBookingStatusRequest(BaseModel):
     booking_id: int
     new_status: str
+
+class UpdateProfileRequest(BaseModel):
+    """Request model for updating user profile"""
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
+    
+    # Barber-specific fields
+    shop_name: Optional[str] = None
+    shop_address: Optional[str] = None
+    shop_image_url: Optional[str] = None
+    license_number: Optional[str] = None
+    shop_status: Optional[str] = None
+
+    
+    @validator('first_name', 'last_name')
+    def validate_names(cls, v):
+        if v is not None and (len(v.strip()) < 2 or len(v.strip()) > 50):
+            raise ValueError('Name must be between 2 and 50 characters')
+        return v.strip() if v else v
+    
+    @validator('email')
+    def validate_email(cls, v):
+        if v is not None:
+            import re
+            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_pattern, v):
+                raise ValueError('Invalid email format')
+        return v
+    
+    @validator('phone_number')
+    def validate_phone(cls, v):
+        if v is not None:
+            # Remove any spaces or special characters
+            phone_clean = ''.join(filter(str.isdigit, v))
+            if len(phone_clean) < 10 or len(phone_clean) > 12:
+                raise ValueError('Phone number must be 10-12 digits')
+        return v
+    
+    @validator('shop_name')
+    def validate_shop_name(cls, v):
+        if v is not None and (len(v.strip()) < 2 or len(v.strip()) > 100):
+            raise ValueError('Shop name must be between 2 and 100 characters')
+        return v.strip() if v else v
+    
+    @validator('shop_address')
+    def validate_shop_address(cls, v):
+        if v is not None and len(v.strip()) > 500:
+            raise ValueError('Shop address cannot exceed 500 characters')
+        return v.strip() if v else v
+    
+    @validator('license_number')
+    def validate_license_number(cls, v):
+        if v is not None and len(v.strip()) > 50:
+            raise ValueError('License number cannot exceed 50 characters')
+        return v.strip() if v else v
+    
+    @validator('shop_status')
+    def validate_shop_status(cls, v):
+        if v is not None and v not in ["open", "closed"]:
+            raise ValueError('Shop status must be either "open" or "closed"')
+        return v
+
+class ProfileUpdateResponse(BaseModel):
+    """Response model for profile update"""
+    user_id: int
+    username: str
+    email: str
+    phone_number: str
+    first_name: str
+    last_name: str
+    is_barber: bool
+    updated_fields: list[str]
+    
+    # Barber-specific fields (optional)
+    shop_name: Optional[str] = None
+    shop_address: Optional[str] = None
+    shop_image_url: Optional[str] = None
+    license_number: Optional[str] = None

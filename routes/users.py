@@ -1,8 +1,8 @@
-# routes/users.py - Updated with session-based authentication
-from fastapi import APIRouter, Depends, HTTPException, Request
+# routes/users.py - Updated with session-based authentication and profile update
+from fastapi import APIRouter, Depends, HTTPException, Request,Query
 from models.users import (
     TokenResponse, Register, Login, ResponseSchema, ChangePassword,
-    ActiveSessionsResponse, LogoutRequest, SessionInfo
+    ActiveSessionsResponse, LogoutRequest, SessionInfo, UpdateProfileRequest
 )
 from sqlalchemy.orm import Session
 from config import get_db
@@ -13,6 +13,7 @@ from repository.users import (
 from tables.users import Users
 from tables.user_sessions import UserSession
 from utils.cloudinary_helper import upload_base64_image
+from datetime import datetime
 
 router = APIRouter(
     prefix="/auth",
@@ -80,7 +81,8 @@ async def signup(request: Register, req: Request, db: Session = Depends(get_db))
             shop_name=request.shop_name if request.is_barber else None,
             shop_address=request.shop_address if request.is_barber else None,
             shop_image_url=final_image_url,
-            license_number=request.license_number if request.is_barber else None
+            license_number=request.license_number if request.is_barber else None,
+            shop_status=request.shop_status if request.is_barber else None,
         )
         
         UserRepo.insert(db, _user)
@@ -388,6 +390,190 @@ async def get_profile(
             status="Error",
             message="Internal Server Error"
         ).dict(exclude_none=True)
+
+@router.put('/profile')
+async def update_profile(
+    request: UpdateProfileRequest,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Update user profile information"""
+    try:
+        updated_fields = []
+        
+        # Check if phone number or email are being changed and if they're already taken
+        if request.phone_number and request.phone_number != current_user.phone_number:
+            existing_phone = UserRepo.find_by_phone_number(db, Users, request.phone_number)
+            if existing_phone and existing_phone.id != current_user.id:
+                return ResponseSchema(
+                    code="400",
+                    status="Bad Request",
+                    message="Phone number is already registered to another account"
+                ).dict(exclude_none=True)
+        
+        if request.email and request.email != current_user.email:
+            existing_email = db.query(Users).filter(Users.email == request.email).first()
+            if existing_email and existing_email.id != current_user.id:
+                return ResponseSchema(
+                    code="400",
+                    status="Bad Request",
+                    message="Email is already registered to another account"
+                ).dict(exclude_none=True)
+        
+        # Update basic profile fields
+        if request.first_name is not None and request.first_name != current_user.first_name:
+            current_user.first_name = request.first_name
+            updated_fields.append("first_name")
+        
+        if request.last_name is not None and request.last_name != current_user.last_name:
+            current_user.last_name = request.last_name
+            updated_fields.append("last_name")
+        
+        if request.email is not None and request.email != current_user.email:
+            current_user.email = request.email
+            updated_fields.append("email")
+        
+        if request.phone_number is not None and request.phone_number != current_user.phone_number:
+            current_user.phone_number = request.phone_number
+            updated_fields.append("phone_number")
+        
+        # Update barber-specific fields (only if user is a barber)
+        if current_user.is_barber:
+            if request.shop_name is not None and request.shop_name != current_user.shop_name:
+                current_user.shop_name = request.shop_name
+                updated_fields.append("shop_name")
+            
+            if request.shop_address is not None and request.shop_address != current_user.shop_address:
+                current_user.shop_address = request.shop_address
+                updated_fields.append("shop_address")
+            
+            if request.license_number is not None and request.license_number != current_user.license_number:
+                current_user.license_number = request.license_number
+                updated_fields.append("license_number")
+            
+            if request.shop_status is not None and request.shop_status != current_user.shop_status:
+                current_user.shop_status = request.shop_status
+                updated_fields.append("shop_status")
+            
+            # Handle shop image update
+            if request.shop_image_url is not None and request.shop_image_url != current_user.shop_image_url:
+                final_image_url = None
+                
+                # If it's a base64 image or doesn't start with http, upload to Cloudinary
+                if request.shop_image_url.startswith('data:image') or not request.shop_image_url.startswith('http'):
+                    try:
+                        final_image_url = upload_base64_image(
+                            request.shop_image_url, 
+                            folder=f"barbershop/{current_user.username}"
+                        )
+                        print(f"✅ Profile image uploaded to Cloudinary: {final_image_url}")
+                    except Exception as e:
+                        print(f"⚠️ Profile image upload failed: {e}")
+                        return ResponseSchema(
+                            code="400",
+                            status="Bad Request",
+                            message=f"Image upload failed: {str(e)}"
+                        ).dict(exclude_none=True)
+                else:
+                    final_image_url = request.shop_image_url
+                
+                current_user.shop_image_url = final_image_url
+                updated_fields.append("shop_image_url")
+        else:
+            # If user is not a barber but trying to update barber fields, return error
+            barber_fields = [request.shop_name, request.shop_address, request.shop_image_url, request.license_number]
+            if any(field is not None for field in barber_fields):
+                return ResponseSchema(
+                    code="403",
+                    status="Forbidden",
+                    message="Only barbers can update shop-related information"
+                ).dict(exclude_none=True)
+        
+        # Check if any fields were actually updated
+        if not updated_fields:
+            return ResponseSchema(
+                code="400",
+                status="Bad Request",
+                message="No changes detected in the submitted data"
+            ).dict(exclude_none=True)
+        
+        # Update the update_date timestamp
+        current_user.update_date = datetime.utcnow()
+        updated_fields.append("update_date")
+        
+        # Commit changes to database
+        db.commit()
+        db.refresh(current_user)
+        
+        # Prepare response data
+        response_data = {
+            "user_id": current_user.id,
+            "username": current_user.username,
+            "email": current_user.email,
+            "phone_number": current_user.phone_number,
+            "first_name": current_user.first_name,
+            "last_name": current_user.last_name,
+            "is_barber": current_user.is_barber,
+            "updated_fields": updated_fields
+        }
+        
+        # Add barber-specific information if user is a barber
+        if current_user.is_barber:
+            response_data.update({
+                "shop_name": current_user.shop_name,
+                "shop_address": current_user.shop_address,
+                "shop_image_url": current_user.shop_image_url,
+                "license_number": current_user.license_number,
+                "shop_status": current_user.shop_status,
+            })
+        
+        return ResponseSchema(
+            code="200",
+            status="OK",
+            message=f"Profile updated successfully. Updated {len(updated_fields)} fields.",
+            result=response_data
+        ).dict(exclude_none=True)
+        
+    except ValueError as ve:
+        # Handle validation errors
+        return ResponseSchema(
+            code="400",
+            status="Bad Request",
+            message=str(ve)
+        ).dict(exclude_none=True)
+        
+    except Exception as error:
+        db.rollback()
+        print(f"Update profile error: {error}")
+        return ResponseSchema(
+            code="500",
+            status="Error",
+            message="Internal Server Error"
+        ).dict(exclude_none=True)
+
+@router.put('/shop-status')
+async def update_shop_status(
+    status: str = Query(..., description="Shop status: open or closed"),
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Update shop open/closed status (barbers only)"""
+    if not current_user.is_barber:
+        raise HTTPException(status_code=403, detail="Only barbers can update shop status")
+    
+    if status not in ["open", "closed"]:
+        raise HTTPException(status_code=400, detail="Status must be 'open' or 'closed'")
+    
+    current_user.shop_status = status
+    current_user.update_date = datetime.utcnow()
+    db.commit()
+    
+    return ResponseSchema(
+        code="200",
+        status="OK", 
+        message=f"Shop status updated to {status}",
+        result={"shop_status": status}
+    ).dict(exclude_none=True)
 
 @router.get('/verify-token')
 async def verify_token(
