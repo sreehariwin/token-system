@@ -122,29 +122,29 @@ class UpdateProfileRequest(BaseModel):
                 raise ValueError('Phone number must be 10-12 digits')
         return v
     
-    @validator('shop_name')
-    def validate_shop_name(cls, v):
-        if v is not None and (len(v.strip()) < 2 or len(v.strip()) > 100):
-            raise ValueError('Shop name must be between 2 and 100 characters')
-        return v.strip() if v else v
+    # @validator('shop_name')
+    # def validate_shop_name(cls, v):
+    #     if v is not None and (len(v.strip()) < 2 or len(v.strip()) > 100):
+    #         raise ValueError('Shop name must be between 2 and 100 characters')
+    #     return v.strip() if v else v
     
-    @validator('shop_address')
-    def validate_shop_address(cls, v):
-        if v is not None and len(v.strip()) > 500:
-            raise ValueError('Shop address cannot exceed 500 characters')
-        return v.strip() if v else v
+    # @validator('shop_address')
+    # def validate_shop_address(cls, v):
+    #     if v is not None and len(v.strip()) > 500:
+    #         raise ValueError('Shop address cannot exceed 500 characters')
+    #     return v.strip() if v else v
     
-    @validator('license_number')
-    def validate_license_number(cls, v):
-        if v is not None and len(v.strip()) > 50:
-            raise ValueError('License number cannot exceed 50 characters')
-        return v.strip() if v else v
+    # @validator('license_number')
+    # def validate_license_number(cls, v):
+    #     if v is not None and len(v.strip()) > 50:
+    #         raise ValueError('License number cannot exceed 50 characters')
+    #     return v.strip() if v else v
     
-    @validator('shop_status')
-    def validate_shop_status(cls, v):
-        if v is not None and v not in ["open", "closed"]:
-            raise ValueError('Shop status must be either "open" or "closed"')
-        return v
+    # @validator('shop_status')
+    # def validate_shop_status(cls, v):
+    #     if v is not None and v not in ["open", "closed"]:
+    #         raise ValueError('Shop status must be either "open" or "closed"')
+    #     return v
 
 class ProfileUpdateResponse(BaseModel):
     """Response model for profile update"""
