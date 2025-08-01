@@ -373,7 +373,8 @@ async def get_profile(
                 "shop_name": current_user.shop_name,
                 "shop_address": current_user.shop_address,
                 "shop_image_url": current_user.shop_image_url,
-                "license_number": current_user.license_number
+                "license_number": current_user.license_number,
+                "shop_status":current_user.shop_status
             })
         
         return ResponseSchema(
