@@ -20,7 +20,7 @@ class Users(Base):
     license_number = Column(String, nullable=True)  # New field
     create_date = Column(DateTime, default=datetime.datetime.utcnow)
     update_date = Column(DateTime)
-    shop_status = Column(String, default="open", nullable=True) 
+    shop_status = Column(Boolean, default=True, nullable=True)  # True = open, False = closed 
     
     # Add the missing relationship for sessions
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")

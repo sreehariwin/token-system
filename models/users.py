@@ -15,7 +15,7 @@ class Register(BaseModel):
     shop_address: Optional[str] = None
     shop_image_url: Optional[str] = None
     license_number: Optional[str] = None
-    shop_status: Optional[str] = "open"
+    shop_status: Optional[bool] = True
 
 
 class Login(BaseModel):
@@ -95,7 +95,7 @@ class UpdateProfileRequest(BaseModel):
     shop_address: Optional[str] = None
     shop_image_url: Optional[str] = None
     license_number: Optional[str] = None
-    shop_status: Optional[str] = None
+    shop_status: Optional[bool] = None
 
     
     @validator('first_name', 'last_name')
@@ -142,8 +142,8 @@ class UpdateProfileRequest(BaseModel):
     
     # @validator('shop_status')
     # def validate_shop_status(cls, v):
-    #     if v is not None and v not in ["open", "closed"]:
-    #         raise ValueError('Shop status must be either "open" or "closed"')
+    #     if v is not None and not isinstance(v, bool):
+    #         raise ValueError('Shop status must be boolean (true for open, false for closed)')
     #     return v
 
 class ProfileUpdateResponse(BaseModel):

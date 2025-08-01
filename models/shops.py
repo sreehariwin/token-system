@@ -16,7 +16,7 @@ class ShopListResponse(BaseModel):
     available_slots_count: Optional[int] = None
     next_available_slot: Optional[date] = None
     next_available_time: Optional[time] = None
-    shop_status: str = "open"
+    shop_status: bool = True 
 
 class ReviewResponse(BaseModel):
     customer_name: str
@@ -45,7 +45,7 @@ class ShopDetailsResponse(BaseModel):
     available_slots: List[Dict[str, Any]] = []
     business_hours: Dict[str, str] = {}
     member_since: Optional[date] = None
-    shop_status: str = "open"
+    shop_status: bool = True 
 
 class ShopSearchRequest(BaseModel):
     query: Optional[str] = None

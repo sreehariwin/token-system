@@ -553,7 +553,7 @@ async def update_profile(
 
 @router.put('/shop-status')
 async def update_shop_status(
-    status: str = Query(..., description="Shop status: open or closed"),
+    is_open: bool = Query(..., description="Shop status: true for open, false for closed"),
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user)
 ):
@@ -561,18 +561,16 @@ async def update_shop_status(
     if not current_user.is_barber:
         raise HTTPException(status_code=403, detail="Only barbers can update shop status")
     
-    if status not in ["open", "closed"]:
-        raise HTTPException(status_code=400, detail="Status must be 'open' or 'closed'")
-    
-    current_user.shop_status = status
+    current_user.shop_status = is_open
     current_user.update_date = datetime.utcnow()
     db.commit()
     
+    status_text = "open" if is_open else "closed"
     return ResponseSchema(
         code="200",
         status="OK", 
-        message=f"Shop status updated to {status}",
-        result={"shop_status": status}
+        message=f"Shop status updated to {status_text}",
+        result={"shop_status": is_open, "status_text": status_text}
     ).dict(exclude_none=True)
 
 @router.get('/verify-token')
