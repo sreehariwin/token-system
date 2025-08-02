@@ -412,6 +412,15 @@ async def update_profile(
                     message="Phone number is already registered to another account"
                 ).dict(exclude_none=True)
         
+        if request.username and request.username != current_user.username:
+            existing_username = UserRepo.find_by_username(db, Users, request.username)
+            if existing_username and existing_username.id != current_user.id:
+                return ResponseSchema(
+                    code="400",
+                    status="Bad Request",
+                    message="Username is already taken"
+                ).dict(exclude_none=True)
+        
         if request.email and request.email != current_user.email:
             existing_email = db.query(Users).filter(Users.email == request.email).first()
             if existing_email and existing_email.id != current_user.id:
@@ -438,6 +447,14 @@ async def update_profile(
             current_user.phone_number = request.phone_number
             updated_fields.append("phone_number")
         
+        if request.username is not None and request.username != current_user.username:
+            current_user.username = request.username
+            updated_fields.append("username")
+
+        if request.shop_status is not None and request.shop_status != current_user.shop_status:
+                current_user.shop_status = request.shop_status
+                updated_fields.append("shop_status")
+        
         # Update barber-specific fields (only if user is a barber)
         if current_user.is_barber:
             if request.shop_name is not None and request.shop_name != current_user.shop_name:
@@ -452,9 +469,7 @@ async def update_profile(
                 current_user.license_number = request.license_number
                 updated_fields.append("license_number")
             
-            if request.shop_status is not None and request.shop_status != current_user.shop_status:
-                current_user.shop_status = request.shop_status
-                updated_fields.append("shop_status")
+            
             
             # Handle shop image update
             if request.shop_image_url is not None and request.shop_image_url != current_user.shop_image_url:
@@ -482,13 +497,14 @@ async def update_profile(
                 updated_fields.append("shop_image_url")
         else:
             # If user is not a barber but trying to update barber fields, return error
-            barber_fields = [request.shop_name, request.shop_address, request.shop_image_url, request.license_number]
-            if any(field is not None for field in barber_fields):
-                return ResponseSchema(
-                    code="403",
-                    status="Forbidden",
-                    message="Only barbers can update shop-related information"
-                ).dict(exclude_none=True)
+            barber_fields_provided = [request.shop_name, request.shop_address, request.shop_image_url, request.license_number, request.shop_status]
+            if any(field is not None for field in barber_fields_provided):
+                current_user.shop_name = None
+                current_user.shop_address = None
+                current_user.shop_image_url = None
+                current_user.license_number = None
+                current_user.shop_status = False
+                updated_fields.extend(["shop_name", "shop_address", "shop_image_url", "license_number", "shop_status"])
         
         # Check if any fields were actually updated
         if not updated_fields:

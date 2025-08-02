@@ -89,6 +89,7 @@ class UpdateProfileRequest(BaseModel):
     last_name: Optional[str] = None
     email: Optional[str] = None
     phone_number: Optional[str] = None
+    username: Optional[str] = None
     
     # Barber-specific fields
     shop_name: Optional[str] = None
@@ -121,7 +122,17 @@ class UpdateProfileRequest(BaseModel):
             if len(phone_clean) < 10 or len(phone_clean) > 12:
                 raise ValueError('Phone number must be 10-12 digits')
         return v
-    
+    @validator('username')
+    def validate_username(cls, v):
+        if v is not None:
+            if len(v.strip()) < 3 or len(v.strip()) > 50:
+                raise ValueError('Username must be between 3 and 50 characters')
+            # Check for valid characters (alphanumeric and underscore)
+            import re
+            if not re.match(r'^[a-zA-Z0-9_]+$', v.strip()):
+                raise ValueError('Username can only contain letters, numbers, and underscores')
+        return v.strip() if v else v
+
     # @validator('shop_name')
     # def validate_shop_name(cls, v):
     #     if v is not None and (len(v.strip()) < 2 or len(v.strip()) > 100):
