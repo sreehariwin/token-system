@@ -1,4 +1,4 @@
-# utils/notifications.py 
+# utils/notifications.py - Updated with notification toggle check
 from sqlalchemy.orm import Session
 from tables.notifications import Notification
 from tables.users import Users
@@ -17,7 +17,7 @@ class NotificationService:
         notification_type: str,
         booking_id: int = None
     ):
-        # Create database notification
+        # Create database notification (always create regardless of settings)
         notification = Notification(
             user_id=user_id,
             title=title,
@@ -28,21 +28,27 @@ class NotificationService:
         db.add(notification)
         db.commit()
         
-        # Get user's FCM token and send push notification
+        # Check if user has notifications enabled and has FCM token
         user = db.query(Users).filter(Users.id == user_id).first()
-        if user and user.fcm_token:
+        if user and user.notifications_enabled and user.fcm_token:
             data = {
                 "notification_type": notification_type,
                 "booking_id": str(booking_id) if booking_id else "",
                 "notification_id": str(notification.id)
             }
             
-            await send_push_notification(
+            success = await send_push_notification(
                 fcm_token=user.fcm_token,
                 title=title,
                 body=message,
                 data=data
             )
+            
+            if not success:
+                print(f"Failed to send push notification to user {user_id}")
+        else:
+            reason = "no FCM token" if not user.fcm_token else "notifications disabled"
+            print(f"Skipping push notification for user {user_id}: {reason}")
         
         return notification
 
@@ -63,20 +69,31 @@ class NotificationService:
         await NotificationService.create_notification_with_push(
             db, customer.id, title, message, "booking_confirmed", booking.id
         )
+    
     @staticmethod
-    def notify_booking_cancelled(db: Session, booking: Booking, customer: Users, barber: Users, cancelled_by_barber: bool = False):
+    async def notify_booking_cancelled(db: Session, booking: Booking, customer: Users, barber: Users, cancelled_by_barber: bool = False):
         """Notify when booking is cancelled"""
         if cancelled_by_barber:
             # Notify customer
             title = "Booking Cancelled"
             message = f"Your booking with {barber.shop_name or f'{barber.first_name} {barber.last_name}'} has been cancelled."
-            NotificationService.create_notification(
+            await NotificationService.create_notification_with_push(
                 db, customer.id, title, message, "booking_cancelled", booking.id
             )
         else:
             # Notify barber
             title = "Booking Cancelled"
             message = f"{customer.first_name} {customer.last_name} has cancelled their booking."
-            NotificationService.create_notification(
+            await NotificationService.create_notification_with_push(
                 db, barber.id, title, message, "booking_cancelled", booking.id
             )
+
+    @staticmethod
+    async def send_test_notification(db: Session, user_id: int):
+        """Send a test notification"""
+        title = "Test Notification"
+        message = "This is a test push notification from your barbershop app!"
+        
+        return await NotificationService.create_notification_with_push(
+            db, user_id, title, message, "test_notification"
+        )

@@ -14,6 +14,8 @@ from tables.users import Users
 from tables.user_sessions import UserSession
 from utils.cloudinary_helper import upload_base64_image
 from datetime import datetime
+from utils.notifications import NotificationService
+
 
 router = APIRouter(
     prefix="/auth",
@@ -635,3 +637,82 @@ async def update_fcm_token(
         status="OK",
         message="FCM token updated successfully"
     ).dict(exclude_none=True)
+
+@router.put('/notifications/toggle')
+async def toggle_notifications(
+    enabled: bool,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Enable or disable push notifications for the user"""
+    current_user.notifications_enabled = enabled
+    db.commit()
+    
+    status = "enabled" if enabled else "disabled"
+    return ResponseSchema(
+        code="200",
+        status="OK",
+        message=f"Notifications {status} successfully",
+        result={"notifications_enabled": enabled}
+    ).dict(exclude_none=True)
+
+@router.get('/notifications/status')
+async def get_notification_status(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Get current notification status"""
+    return ResponseSchema(
+        code="200",
+        status="OK",
+        message="Notification status retrieved successfully",
+        result={
+            "notifications_enabled": current_user.notifications_enabled,
+            "has_fcm_token": bool(current_user.fcm_token)
+        }
+    ).dict(exclude_none=True)
+
+@router.delete('/fcm-token')
+async def remove_fcm_token(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Remove FCM token (e.g., when user logs out)"""
+    current_user.fcm_token = None
+    db.commit()
+    
+    return ResponseSchema(
+        code="200",
+        status="OK",
+        message="FCM token removed successfully"
+    ).dict(exclude_none=True)
+
+@router.post('/notifications/test')
+async def send_test_notification(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Send a test push notification to the current user"""
+    try:
+        notification = await NotificationService.send_test_notification(
+            db, current_user.id
+        )
+        
+        return ResponseSchema(
+            code="200",
+            status="OK",
+            message="Test notification sent successfully",
+            result={
+                "notification_id": notification.id,
+                "has_fcm_token": bool(current_user.fcm_token),
+                "notifications_enabled": current_user.notifications_enabled
+            }
+        ).dict(exclude_none=True)
+        
+    except Exception as e:
+        print(f"Error sending test notification: {e}")
+        return ResponseSchema(
+            code="500",
+            status="ERROR",
+            message=f"Failed to send test notification: {str(e)}"
+        ).dict(exclude_none=True)
