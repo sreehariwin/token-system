@@ -21,6 +21,9 @@ class Users(Base):
     create_date = Column(DateTime, default=datetime.datetime.utcnow)
     update_date = Column(DateTime)
     shop_status = Column(Boolean, default=True, nullable=True)  # True = open, False = closed 
+
+    fcm_token = Column(String, nullable=True)
+    notifications_enabled = Column(Boolean, default=True)
     
     # Add the missing relationship for sessions
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
