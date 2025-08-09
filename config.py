@@ -30,6 +30,8 @@ if IS_PRODUCTION:
     else:
         CLOUDINARY_ENABLED = True
         
+    FIREBASE_SERVICE_ACCOUNT = os.getenv("FIREBASE_SERVICE_ACCOUNT")
+
     print(f"🚀 Running in PRODUCTION mode")
     print(f"📊 Database URL: {DATABASE_URL[:50]}...")  # Only show first 50 chars for security
 else:

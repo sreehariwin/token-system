@@ -11,8 +11,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import after path adjustment
 try:
     from config import Base, engine, IS_PRODUCTION
-    import tables.users, tables.slots, tables.bookings, tables.user_sessions
-    from routes import users, bookings, slots, shops
+    import tables.users, tables.slots, tables.bookings, tables.user_sessions,  tables.notifications
+    from routes import users, bookings, slots, shops, notifications
     
     # Create tables
     Base.metadata.create_all(bind=engine)
@@ -48,6 +48,7 @@ if DATABASE_CONNECTED:
     app.include_router(bookings.router, tags=["Bookings"])
     app.include_router(slots.router, tags=["Slots"])
     app.include_router(shops.router, tags=["Shops"])  # New shop routes
+    app.include_router(notifications.router, tags=["Notifications"])
 
 @app.get("/", tags=["Root"])
 def read_root():
