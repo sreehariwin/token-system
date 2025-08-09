@@ -27,3 +27,5 @@ class Users(Base):
     
     # Add the missing relationship for barber slots
     barber_slots = relationship("Slot", foreign_keys="Slot.barber_id", back_populates="barber")
+
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")

@@ -619,3 +619,19 @@ async def verify_token(
             status="Error",
             message="Internal Server Error"
         ).dict(exclude_none=True)
+    
+@router.put('/fcm-token')
+async def update_fcm_token(
+    fcm_token: str,
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Update user's FCM token"""
+    current_user.fcm_token = fcm_token
+    db.commit()
+    
+    return ResponseSchema(
+        code="200",
+        status="OK",
+        message="FCM token updated successfully"
+    ).dict(exclude_none=True)

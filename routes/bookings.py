@@ -14,6 +14,8 @@ from tables.users import Users
 from repository.users import get_current_user
 from datetime import datetime, timedelta
 from typing import List, Optional
+from utils.notifications import NotificationService
+
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
@@ -74,6 +76,8 @@ def book_slot(
         special_requests=req.special_requests
     )
     
+    NotificationService.notify_booking_received(db, booking, current_user, slot.barber)
+
     db.add(booking)
     db.commit()
     db.refresh(booking)
@@ -336,6 +340,8 @@ def cancel_booking(
     slot.is_booked = False
     slot.booked_by = None
     
+    NotificationService.notify_booking_cancelled(db, booking, current_user, slot.barber, cancelled_by_barber=False)
+
     db.commit()
 
     return {
@@ -436,6 +442,11 @@ def update_booking_status(
         # Free the slot
         booking.slot.is_booked = False
         booking.slot.booked_by = None
+    
+    if req.new_status == "confirmed":
+        NotificationService.notify_booking_confirmed(db, booking, booking.customer, current_user)
+    elif req.new_status == "cancelled":
+        NotificationService.notify_booking_cancelled(db, booking, booking.customer, current_user, cancelled_by_barber=True)
     
     db.commit()
     db.refresh(booking)
