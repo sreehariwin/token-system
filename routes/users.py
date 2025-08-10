@@ -1,5 +1,5 @@
 # routes/users.py - Updated with session-based authentication and profile update
-from fastapi import APIRouter, Depends, HTTPException, Request,Query
+from fastapi import APIRouter, Depends, HTTPException, Request,Query,status
 from models.users import (
     TokenResponse, Register, Login, ResponseSchema, ChangePassword,
     ActiveSessionsResponse, LogoutRequest, SessionInfo, UpdateProfileRequest
@@ -15,6 +15,7 @@ from tables.user_sessions import UserSession
 from utils.cloudinary_helper import upload_base64_image
 from datetime import datetime
 from utils.notifications import NotificationService
+from fastapi.exceptions import RequestValidationError
 
 
 router = APIRouter(
@@ -34,10 +35,10 @@ def get_client_info(request: Request):
     
     return device_info, ip_address
 
-@router.post('/signup')
+@router.post('/signup')  # KEEP YOUR EXISTING ROUTE NAME
 async def signup(request: Register, req: Request, db: Session = Depends(get_db)):
     try:
-        # Check if username already exists
+        # Your existing validation logic (don't change)
         existing_user_by_username = UserRepo.find_by_username(db, Users, request.username)
         if existing_user_by_username:
             return ResponseSchema(
@@ -46,7 +47,6 @@ async def signup(request: Register, req: Request, db: Session = Depends(get_db))
                 message="Username already exists"
             ).dict(exclude_none=True)
 
-        # Check if phone number already exists
         existing_user_by_phone = UserRepo.find_by_phone_number(db, Users, request.phone_number)
         if existing_user_by_phone:
             return ResponseSchema(
@@ -55,7 +55,7 @@ async def signup(request: Register, req: Request, db: Session = Depends(get_db))
                 message="Phone number already exists"
             ).dict(exclude_none=True)
 
-        # Handle image upload if provided
+        # Your existing image upload logic (don't change)
         final_image_url = None
         if request.is_barber and request.shop_image_url:
             if request.shop_image_url.startswith('data:image') or not request.shop_image_url.startswith('http'):
@@ -71,7 +71,7 @@ async def signup(request: Register, req: Request, db: Session = Depends(get_db))
             else:
                 final_image_url = request.shop_image_url
 
-        # Create new user
+        # Create new user - ADD NOTIFICATION FIELDS HERE:
         _user = Users(
             username=request.username,
             password=pwd_context.hash(request.password),
@@ -85,19 +85,19 @@ async def signup(request: Register, req: Request, db: Session = Depends(get_db))
             shop_image_url=final_image_url,
             license_number=request.license_number if request.is_barber else None,
             shop_status=request.shop_status if request.is_barber else None,
+            notifications_enabled=True,  # Default to enabled
+            fcm_token=None  # Will be set later when app connects
         )
-        
+
+        # Your existing logic (don't change the rest)
         UserRepo.insert(db, _user)
-        
-        # Create session for auto-login
+
         device_info, ip_address = get_client_info(req)
         session = SessionRepo.create_session(db, _user.id, device_info, ip_address)
-        
-        # Generate JWT token with session reference
+
         token = JWTRepo.generate_session_token(session.session_token)
         role = "barber" if _user.is_barber else "customer"
-        
-        # Prepare response data
+
         response_data = {
             "access_token": token,
             "token_type": "bearer",
@@ -107,8 +107,7 @@ async def signup(request: Register, req: Request, db: Session = Depends(get_db))
             "username": _user.username,
             "expires_on_logout": True
         }
-        
-        # Add barber-specific information if user is a barber
+
         if _user.is_barber:
             response_data.update({
                 "shop_name": _user.shop_name,
@@ -116,14 +115,14 @@ async def signup(request: Register, req: Request, db: Session = Depends(get_db))
                 "shop_image_url": final_image_url,
                 "license_number": _user.license_number
             })
-        
+
         return ResponseSchema(
             code="200", 
             status="OK", 
             message="User registered and logged in successfully",
             result=response_data
         ).dict(exclude_none=True)
-        
+
     except Exception as e:
         print(f"Signup error: {e}")
         return ResponseSchema(
@@ -131,7 +130,7 @@ async def signup(request: Register, req: Request, db: Session = Depends(get_db))
             status="Error", 
             message="Internal Server Error"
         ).dict(exclude_none=True)
-
+    
 @router.post('/login')
 async def login(request: Login, req: Request, db: Session = Depends(get_db)):
     try:

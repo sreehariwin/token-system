@@ -26,7 +26,7 @@ def can_modify_booking(slot_datetime: datetime) -> bool:
     return time_diff.total_seconds() > 7200  # 2 hours = 7200 seconds
 
 @router.post("/book", response_model=BookingResponse)
-def book_slot(
+async def book_slot( 
     req: BookingRequest, 
     db: Session = Depends(get_db), 
     current_user: Users = Depends(get_current_user)
@@ -76,11 +76,30 @@ def book_slot(
         special_requests=req.special_requests
     )
     
-    NotificationService.notify_booking_received(db, booking, current_user, slot.barber)
-
     db.add(booking)
     db.commit()
     db.refresh(booking)
+
+    try:
+        print(f"🔔 Sending booking notification for booking {booking.id}")
+        print(f"📧 Customer: {current_user.first_name} {current_user.last_name}")
+        print(f"💈 Barber: {slot.barber.first_name} {slot.barber.last_name}")
+        print(f"🔔 Customer FCM: {current_user.fcm_token is not None}")
+        print(f"🔔 Barber FCM: {slot.barber.fcm_token is not None}")
+        
+        # ADD 'await' HERE:
+        await NotificationService.notify_booking_received(db, booking, current_user, slot.barber)
+        
+        # Also notify customer if booking is auto-confirmed
+        if booking.status == "confirmed":
+            await NotificationService.notify_booking_confirmed(db, booking, current_user, slot.barber)
+        
+        print(f"✅ Notifications sent successfully for booking {booking.id}")
+        
+    except Exception as e:
+        print(f"❌ Notification error (booking still created): {e}")
+        import traceback
+        print(f"Full error: {traceback.format_exc()}")
 
     return BookingResponse(
         booking_id=booking.id,
