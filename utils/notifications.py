@@ -30,6 +30,8 @@ class NotificationService:
         
         # Check if user has notifications enabled and has FCM token
         user = db.query(Users).filter(Users.id == user_id).first()
+        print(f"id {user.id}")
+        print(f"token {user.fcm_token}")
         if user and user.notifications_enabled and user.fcm_token:
             data = {
                 "notification_type": notification_type,
