@@ -54,12 +54,62 @@ class NotificationService:
 
     @staticmethod
     async def notify_booking_received(db: Session, booking: Booking, customer: Users, barber: Users):
-        title = "New Booking Received"
-        message = f"{customer.first_name} {customer.last_name} has booked a slot with you."
-        
-        await NotificationService.create_notification_with_push(
-            db, barber.id, title, message, "booking_received", booking.id
-        )
+            """Send notification to barber when new booking is received"""
+            
+            title = "New Booking Received"
+            message = f"{customer.first_name} {customer.last_name} has booked a slot with you."
+            
+            print(f"📧 Creating notification for barber {barber.id}: {title}")
+            
+            # Create database notification
+            notification = Notification(
+                user_id=barber.id,
+                title=title,
+                message=message,
+                type="booking_received",
+                related_booking_id=booking.id
+            )
+            db.add(notification)
+            db.commit()
+            db.refresh(notification)
+            
+            print(f"✅ Database notification created with ID {notification.id}")
+            
+            # Send push notification if barber has FCM token and notifications enabled
+            if (hasattr(barber, 'notifications_enabled') and barber.notifications_enabled and 
+                barber.fcm_token):
+                
+                print(f"📱 Sending push notification to barber...")
+                
+                data = {
+                    "notification_type": "booking_received",
+                    "booking_id": str(booking.id),
+                    "notification_id": str(notification.id)
+                }
+                
+                success = await send_push_notification(
+                    fcm_token=barber.fcm_token,
+                    title=title,
+                    body=message,
+                    data=data
+                )
+                
+                if success:
+                    print(f"✅ Push notification sent to barber")
+                else:
+                    print(f"❌ Push notification failed")
+            else:
+                reason = []
+                if not hasattr(barber, 'notifications_enabled'):
+                    reason.append("missing notifications_enabled field")
+                elif not barber.notifications_enabled:
+                    reason.append("notifications disabled")
+                if not barber.fcm_token:
+                    reason.append("no FCM token")
+                
+                print(f"⚠️ Skipping push notification: {', '.join(reason)}")
+            
+            return notification
 
     @staticmethod
     async def notify_booking_confirmed(db: Session, booking: Booking, customer: Users, barber: Users):
