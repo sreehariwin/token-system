@@ -62,7 +62,7 @@ async def send_push_notification(
                 notification=messaging.AndroidNotification(
                     title=title,
                     body=body,
-                    channel_id="booking_notifications",
+                    # channel_id="booking_notifications",
                     priority="high",
                     default_sound=True,
                     notification_count=1,
@@ -158,7 +158,7 @@ async def send_to_multiple_tokens(tokens: list, title: str, body: str, data: dic
                 notification=messaging.AndroidNotification(
                     title=title,
                     body=body,
-                    channel_id="booking_notifications",
+                    # channel_id="booking_notifications",
                     priority="high",
                     default_sound=True
                 )
