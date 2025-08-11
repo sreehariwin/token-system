@@ -715,3 +715,58 @@ async def send_test_notification(
             status="ERROR",
             message=f"Failed to send test notification: {str(e)}"
         ).dict(exclude_none=True)
+    
+#rem0ve    
+
+@router.get('/debug/firebase-project')
+async def check_firebase_project():
+    """Check Firebase project configuration"""
+    import os
+    import json
+    
+    try:
+        firebase_service_account = os.getenv('FIREBASE_SERVICE_ACCOUNT')
+        if not firebase_service_account:
+            return {"error": "No FIREBASE_SERVICE_ACCOUNT environment variable"}
+        
+        service_account_info = json.loads(firebase_service_account)
+        
+        return {
+            "server_project_id": service_account_info.get('project_id'),
+            "client_email": service_account_info.get('client_email'),
+            "instructions": "Make sure your Flutter app's google-services.json has the same project_id"
+        }
+    except Exception as e:
+        return {"error": str(e)}
+    
+@router.post('/debug/test-console-token')
+async def test_console_token(
+    console_token: str,  # The exact token that works in Firebase Console
+    db: Session = Depends(get_db)
+):
+    """Test the exact token that works in Firebase Console"""
+    from utils.firebase_notifications import send_push_notification
+    
+    print(f"🧪 Testing console token")
+    print(f"📱 Token length: {len(console_token)}")
+    print(f"📱 Token: {console_token}")
+    
+    try:
+        success = await send_push_notification(
+            fcm_token=console_token,
+            title="🧪 Console Token Test",
+            body="Testing the exact token that works in Firebase Console",
+            data={"test": "console_token"}
+        )
+        
+        return {
+            "success": success,
+            "token_length": len(console_token),
+            "message": "Check logs for detailed error information"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "token_length": len(console_token)
+        }
