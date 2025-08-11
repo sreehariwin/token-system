@@ -1,6 +1,6 @@
 # utils/firebase_notifications.py - Fixed version
 import firebase_admin
-from firebase_admin import credentials, messaging
+from firebase_admin import credentials, messaging, exceptions
 import json
 import os
 
@@ -113,7 +113,7 @@ async def send_push_notification(
         print(f'✅ Successfully sent push notification: {response}')
         return True
         
-    except messaging.InvalidArgumentError as e:
+    except exceptions.InvalidArgumentError as e:
         print(f'❌ Invalid argument error: {e}')
         print(f'   Token: {fcm_token[:20]}...')
         return False
