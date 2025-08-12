@@ -715,3 +715,207 @@ async def send_test_notification(
             status="ERROR",
             message=f"Failed to send test notification: {str(e)}"
         ).dict(exclude_none=True)
+
+
+# remove later
+
+@router.post('/notifications/debug')
+async def debug_notification_system(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Debug endpoint to check notification system status"""
+    import os
+    
+    debug_info = {
+        "user_info": {
+            "id": current_user.id,
+            "name": f"{current_user.first_name} {current_user.last_name}",
+            "email": current_user.email,
+            "phone": current_user.phone_number,
+            "is_barber": current_user.is_barber,
+            "notifications_enabled": current_user.notifications_enabled,
+            "has_fcm_token": bool(current_user.fcm_token),
+            "fcm_token_length": len(current_user.fcm_token) if current_user.fcm_token else 0,
+            "fcm_token_preview": f"{current_user.fcm_token[:30]}...{current_user.fcm_token[-10:]}" if current_user.fcm_token else None
+        },
+        "environment": {
+            "has_firebase_service_account": bool(os.getenv('FIREBASE_SERVICE_ACCOUNT')),
+            "is_production": os.getenv("VERCEL") is not None,
+            "firebase_service_account_length": len(os.getenv('FIREBASE_SERVICE_ACCOUNT', ''))
+        }
+    }
+    
+    # Test Firebase initialization
+    try:
+        from utils.firebase_notifications import initialize_firebase
+        firebase_ok = initialize_firebase()
+        debug_info["firebase_status"] = "initialized" if firebase_ok else "failed"
+    except Exception as e:
+        debug_info["firebase_status"] = f"error: {str(e)}"
+    
+    # Test FCM token if available
+    if current_user.fcm_token:
+        try:
+            from utils.notifications import NotificationService
+            token_validation = await NotificationService.validate_user_fcm_token(db, current_user.id)
+            debug_info["token_validation"] = token_validation
+        except Exception as e:
+            debug_info["token_validation"] = {"error": str(e)}
+    
+    return ResponseSchema(
+        code="200",
+        status="OK",
+        message="Debug information retrieved",
+        result=debug_info
+    ).dict(exclude_none=True)
+
+@router.post('/notifications/test-advanced')
+async def send_advanced_test_notification(
+    test_message: str = "Advanced test notification",
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Advanced test notification with detailed logging"""
+    try:
+        print(f"\n🧪 ADVANCED TEST NOTIFICATION STARTED")
+        print(f"👤 User: {current_user.first_name} {current_user.last_name} (ID: {current_user.id})")
+        print(f"📱 FCM Token exists: {bool(current_user.fcm_token)}")
+        
+        if not current_user.fcm_token:
+            return ResponseSchema(
+                code="400",
+                status="ERROR",
+                message="No FCM token found. Please update your FCM token first."
+            ).dict(exclude_none=True)
+        
+        # Validate token first
+        from utils.notifications import NotificationService
+        token_validation = await NotificationService.validate_user_fcm_token(db, current_user.id)
+        print(f"🧪 Token validation result: {token_validation}")
+        
+        if not token_validation['valid']:
+            return ResponseSchema(
+                code="400",
+                status="ERROR",
+                message=f"Invalid FCM token: {token_validation['error']}"
+            ).dict(exclude_none=True)
+        
+        # Send test notification
+        notification = await NotificationService.send_test_notification(
+            db, current_user.id
+        )
+        
+        return ResponseSchema(
+            code="200",
+            status="OK",
+            message="Advanced test notification sent successfully",
+            result={
+                "notification_id": notification.id,
+                "user_name": f"{current_user.first_name} {current_user.last_name}",
+                "has_fcm_token": bool(current_user.fcm_token),
+                "notifications_enabled": current_user.notifications_enabled,
+                "token_validation": token_validation,
+                "message_sent": test_message
+            }
+        ).dict(exclude_none=True)
+        
+    except Exception as e:
+        print(f"❌ Advanced test notification error: {e}")
+        import traceback
+        print(f"Full error: {traceback.format_exc()}")
+        
+        return ResponseSchema(
+            code="500",
+            status="ERROR",
+            message=f"Advanced test notification failed: {str(e)}"
+        ).dict(exclude_none=True)
+
+@router.post('/fcm-token/validate')
+async def validate_fcm_token(
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Validate the current user's FCM token"""
+    if not current_user.fcm_token:
+        return ResponseSchema(
+            code="400",
+            status="ERROR",
+            message="No FCM token found"
+        ).dict(exclude_none=True)
+    
+    try:
+        from utils.notifications import NotificationService
+        validation_result = await NotificationService.validate_user_fcm_token(db, current_user.id)
+        
+        return ResponseSchema(
+            code="200" if validation_result['valid'] else "400",
+            status="OK" if validation_result['valid'] else "ERROR",
+            message="FCM token validation completed",
+            result={
+                "valid": validation_result['valid'],
+                "error": validation_result.get('error'),
+                "token_length": len(current_user.fcm_token),
+                "token_preview": f"{current_user.fcm_token[:20]}...{current_user.fcm_token[-10:]}"
+            }
+        ).dict(exclude_none=True)
+        
+    except Exception as e:
+        return ResponseSchema(
+            code="500",
+            status="ERROR",
+            message=f"Validation failed: {str(e)}"
+        ).dict(exclude_none=True)
+
+@router.post('/notifications/direct-test')
+async def send_direct_firebase_test(
+    title: str = "Direct Firebase Test",
+    body: str = "This is a direct Firebase test message",
+    db: Session = Depends(get_db),
+    current_user: Users = Depends(get_current_user)
+):
+    """Send notification directly using Firebase without our wrapper"""
+    if not current_user.fcm_token:
+        return ResponseSchema(
+            code="400",
+            status="ERROR",
+            message="No FCM token found"
+        ).dict(exclude_none=True)
+    
+    try:
+        from utils.firebase_notifications import send_push_notification
+        
+        print(f"\n🚀 DIRECT FIREBASE TEST")
+        print(f"👤 User: {current_user.first_name} {current_user.last_name}")
+        print(f"📱 Token: {current_user.fcm_token[:30]}...")
+        
+        success = await send_push_notification(
+            fcm_token=current_user.fcm_token,
+            title=title,
+            body=body,
+            data={
+                "test_type": "direct_firebase_test",
+                "user_id": str(current_user.id),
+                "timestamp": str(datetime.utcnow())
+            }
+        )
+        
+        return ResponseSchema(
+            code="200" if success else "500",
+            status="OK" if success else "ERROR",
+            message=f"Direct Firebase test {'succeeded' if success else 'failed'}",
+            result={
+                "success": success,
+                "title": title,
+                "body": body,
+                "user_id": current_user.id
+            }
+        ).dict(exclude_none=True)
+        
+    except Exception as e:
+        print(f"❌ Direct Firebase test error: {e}")
+        return ResponseSchema(
+            code="500",
+            status="ERROR",
+            message=f"Direct Firebase test failed: {str(e)}"
+        ).dict(exclude_none=True)
