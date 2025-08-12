@@ -121,7 +121,7 @@ async def send_push_notification(
         print(f'📋 Response ID: {response}')
         return True
         
-    except messaging.InvalidArgumentError as e:
+    except exceptions.InvalidArgumentError as e:
         print(f'❌ Invalid argument error: {e}')
         print(f'   This usually means the FCM token format is invalid')
         return False
@@ -181,7 +181,7 @@ async def test_fcm_token_validity(fcm_token: str) -> Dict[str, Any]:
         print(f"✅ Token validation successful: {response}")
         return {"valid": True, "response": response}
         
-    except messaging.InvalidArgumentError as e:
+    except exceptions.InvalidArgumentError as e:
         return {"valid": False, "error": f"Invalid argument: {e}"}
     except messaging.UnregisteredError as e:
         return {"valid": False, "error": f"Unregistered token: {e}"}
