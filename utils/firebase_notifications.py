@@ -55,10 +55,10 @@ def validate_fcm_token(token: str) -> bool:
         return False
     
     # Should not contain spaces or special characters except : - _
-    import re
-    if not re.match(r'^[A-Za-z0-9:_-]+$', token):
-        print("❌ Token contains invalid characters")
-        return False
+    # import re
+    # if not re.match(r'^[A-Za-z0-9:_-]+$', token):
+    #     print("❌ Token contains invalid characters")
+    #     return False
     
     return True
 
