@@ -1,15 +1,42 @@
 {
-    "version": 2,
-    "builds": [
-      {
-        "src": "api/index.py",
-        "use": "@vercel/python"
-      }
-    ],
-    "routes": [
-      {
-        "src": "/(.*)",
-        "dest": "api/index.py"
-      }
-    ]
-  }
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "firebase-messaging-sw.js",
+      "use": "@vercel/static"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/((?!firebase-messaging-sw.js).*)",
+      "destination": "/api/index.py"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/firebase-messaging-sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/javascript"
+        }
+      ]
+    }
+  ]
+}
