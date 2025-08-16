@@ -142,12 +142,12 @@ async def send_push_notification(
         print(f'   Firebase messaging quota exceeded')
         return False
         
-    except messaging.UnavailableError as e:
+    except exceptions.UnavailableError as e:
         print(f'❌ Service unavailable error: {e}')
         print(f'   Firebase service is temporarily unavailable')
         return False
         
-    except messaging.InternalError as e:
+    except exceptions.InternalError as e:
         print(f'❌ Internal Firebase error: {e}')
         return False
         

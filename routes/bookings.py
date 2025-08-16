@@ -15,6 +15,9 @@ from repository.users import get_current_user
 from datetime import datetime, timedelta
 from typing import List, Optional
 from utils.notifications import NotificationService
+import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
@@ -25,94 +28,7 @@ def can_modify_booking(slot_datetime: datetime) -> bool:
     time_diff = slot_datetime - current_time
     return time_diff.total_seconds() > 7200  # 2 hours = 7200 seconds
 
-@router.post("/book", response_model=BookingResponse)
-async def book_slot( 
-    req: BookingRequest, 
-    db: Session = Depends(get_db), 
-    current_user: Users = Depends(get_current_user)
-):
-    """Book a slot for customer"""
-    if current_user.is_barber:
-        raise HTTPException(status_code=403, detail="Barbers cannot book slots")
 
-    # Get slot with barber details
-    slot = db.query(Slot).options(
-        joinedload(Slot.barber)
-    ).filter(
-        Slot.id == req.slot_id, 
-        Slot.is_booked == False
-    ).first()
-    
-    if not slot:
-        raise HTTPException(status_code=400, detail="Invalid or already booked slot")
-
-    # Check if slot is in the future
-    slot_datetime = datetime.combine(slot.slot_date, slot.start_time)
-    if slot_datetime <= datetime.utcnow():
-        raise HTTPException(status_code=400, detail="Cannot book slots in the past")
-
-    # Check if customer already has a booking at the same time
-    existing_booking = db.query(Booking).join(Slot).filter(
-        and_(
-            Booking.customer_id == current_user.id,
-            Slot.slot_date == slot.slot_date,
-            Slot.start_time == slot.start_time,
-            Booking.status.in_(["pending", "confirmed"])
-        )
-    ).first()
-    
-    if existing_booking:
-        raise HTTPException(
-            status_code=400, 
-            detail="You already have a booking at this time"
-        )
-
-    # Create booking
-    slot.is_booked = True
-    slot.booked_by = current_user.id
-    booking = Booking(
-        customer_id=current_user.id, 
-        slot_id=slot.id,
-        special_requests=req.special_requests
-    )
-    
-    db.add(booking)
-    db.commit()
-    db.refresh(booking)
-
-    try:
-        print(f"🔔 Sending booking notification for booking {booking.id}")
-        print(f"📧 Customer: {current_user.first_name} {current_user.last_name}")
-        print(f"💈 Barber: {slot.barber.first_name} {slot.barber.last_name}")
-        print(f"🔔 Customer FCM: {current_user.fcm_token is not None}")
-        print(f"🔔 Barber FCM: {slot.barber.fcm_token is not None}")
-        
-        # ADD 'await' HERE:
-        await NotificationService.notify_booking_received(db, booking, current_user, slot.barber)
-        
-        # Also notify customer if booking is auto-confirmed
-        if booking.status == "confirmed":
-            await NotificationService.notify_booking_confirmed(db, booking, current_user, slot.barber)
-        
-        print(f"✅ Notifications sent successfully for booking {booking.id}")
-        
-    except Exception as e:
-        print(f"❌ Notification error (booking still created): {e}")
-        import traceback
-        print(f"Full error: {traceback.format_exc()}")
-
-    return BookingResponse(
-        booking_id=booking.id,
-        slot_id=slot.id,
-        status=booking.status,
-        booked_at=booking.booked_at,
-        slot_date=slot.slot_date,
-        start_time=slot.start_time,
-        end_time=slot.end_time,
-        barber_name=f"{slot.barber.first_name} {slot.barber.last_name}",
-        shop_name=slot.barber.shop_name,
-        can_modify=can_modify_booking(slot_datetime)
-    )
 
 @router.get("/my", response_model=List[BookingDetailsResponse])
 def get_my_bookings(
@@ -312,7 +228,7 @@ def update_booking(
     )
 
 @router.delete("/{booking_id}")
-def cancel_booking(
+async def cancel_booking(
     booking_id: int,
     req: CancelBookingRequest = CancelBookingRequest(),
     db: Session = Depends(get_db),
@@ -322,9 +238,9 @@ def cancel_booking(
     if current_user.is_barber:
         raise HTTPException(status_code=403, detail="Only customers can cancel their bookings")
 
-    # Get booking with slot details
+    # Get booking with slot and barber details
     booking = db.query(Booking).options(
-        joinedload(Booking.slot)
+        joinedload(Booking.slot).joinedload(Slot.barber)
     ).filter(
         and_(
             Booking.id == booking_id,
@@ -359,9 +275,15 @@ def cancel_booking(
     slot.is_booked = False
     slot.booked_by = None
     
-    NotificationService.notify_booking_cancelled(db, booking, current_user, slot.barber, cancelled_by_barber=False)
-
     db.commit()
+
+    # Send notification to barber
+    try:
+        await NotificationService.notify_booking_cancelled(
+            db, booking, current_user, slot.barber, cancelled_by_barber=False
+        )
+    except Exception as e:
+        logger.error(f"Notification error (booking still cancelled): {e}")
 
     return {
         "message": "Booking cancelled successfully",
@@ -369,6 +291,7 @@ def cancel_booking(
         "cancelled_at": booking.cancelled_at,
         "reason": req.reason
     }
+
 
 @router.get("/barber")
 def get_bookings_for_barber(
@@ -423,7 +346,7 @@ def get_bookings_for_barber(
     return result
 
 @router.put("/barber/status")
-def update_booking_status(
+async def update_booking_status(
     req: UpdateBookingStatusRequest,
     db: Session = Depends(get_db),
     current_user: Users = Depends(get_current_user)
@@ -433,7 +356,8 @@ def update_booking_status(
         raise HTTPException(status_code=403, detail="Only barbers can update booking status")
 
     booking = db.query(Booking).options(
-        joinedload(Booking.slot)
+        joinedload(Booking.slot),
+        joinedload(Booking.customer)
     ).join(Slot).filter(
         and_(
             Booking.id == req.booking_id,
@@ -462,13 +386,20 @@ def update_booking_status(
         booking.slot.is_booked = False
         booking.slot.booked_by = None
     
-    if req.new_status == "confirmed":
-        NotificationService.notify_booking_confirmed(db, booking, booking.customer, current_user)
-    elif req.new_status == "cancelled":
-        NotificationService.notify_booking_cancelled(db, booking, booking.customer, current_user, cancelled_by_barber=True)
-    
     db.commit()
-    db.refresh(booking)
+
+    # Send notifications based on status change
+    try:
+        if req.new_status == "confirmed":
+            await NotificationService.notify_booking_confirmed(
+                db, booking, booking.customer, current_user
+            )
+        elif req.new_status == "cancelled":
+            await NotificationService.notify_booking_cancelled(
+                db, booking, booking.customer, current_user, cancelled_by_barber=True
+            )
+    except Exception as e:
+        logger.error(f"Notification error (status still updated): {e}")
     
     return {
         "message": f"Status updated from {old_status} to {req.new_status}",
@@ -477,7 +408,6 @@ def update_booking_status(
         "new_status": booking.status,
         "updated_at": booking.updated_at
     }
-
 @router.get("/upcoming")
 def get_upcoming_bookings(
     days_ahead: int = Query(7, description="Number of days to look ahead"),

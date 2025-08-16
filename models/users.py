@@ -90,8 +90,6 @@ class UpdateProfileRequest(BaseModel):
     email: Optional[str] = None
     phone_number: Optional[str] = None
     username: Optional[str] = None
-    fcm_token: Optional[str] = None
-
     
     # Barber-specific fields
     shop_name: Optional[str] = None
