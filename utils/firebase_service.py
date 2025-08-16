@@ -81,7 +81,7 @@ class FirebaseService:
                             title=title,
                             body=body,
                             icon="/icon-192x192.png",  # Default icon
-                            click_action="/"
+                            # click_action="/"
                         ),
                         fcm_options=messaging.WebpushFCMOptions(
                             link="/"
@@ -99,7 +99,7 @@ class FirebaseService:
                             title=title,
                             body=body,
                             sound="default",
-                            click_action="FLUTTER_NOTIFICATION_CLICK"
+                            # click_action="FLUTTER_NOTIFICATION_CLICK"
                         )
                     ),
                     apns=messaging.APNSConfig(
