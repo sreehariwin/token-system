@@ -83,9 +83,9 @@ class FirebaseService:
                             icon="/icon-192x192.png",  # Default icon
                             # click_action="/"
                         ),
-                        fcm_options=messaging.WebpushFCMOptions(
-                            link="/"
-                        )
+                        # fcm_options=messaging.WebpushFCMOptions(
+                        #     link="/"
+                        # )
                     )
                 )
             else:  # Android/iOS
