@@ -86,7 +86,6 @@ async def signup(request: Register, req: Request, db: Session = Depends(get_db))
             license_number=request.license_number if request.is_barber else None,
             shop_status=request.shop_status if request.is_barber else None,
             notifications_enabled=True,  # Default to enabled
-            fcm_token=None  # Will be set later when app connects
         )
 
         # Your existing logic (don't change the rest)
